@@ -94,30 +94,32 @@ function deckInfo(deck) {
   for (const c of Store.data.cards) if (scope.has(nm.get(c.noteId))) { total++; if (c.state === 2 && c.ivl >= 21) mature++; }
   return { total, mature, counts: Store.counts(scope) };
 }
+let showPair = false;
 function pairingBox() {
   const st = Sync.status();
-  return `<div class="card-box"><h3>☁ Récupère tes cartes</h3>
-    <p class="muted" style="margin:0 0 12px;line-height:1.55">Sur ton PC, ouvre Les Gémo → <b>Réglages → Synchronisation</b> → « Code d'appairage ». Envoie-toi ce code (message, Notes) puis colle-le ici.</p>
+  return `<div class="card-box"><h3>☁ J'ai un code d'appairage</h3>
+    <p class="muted" style="margin:0 0 12px;line-height:1.55">Sur le PC de Les Gémo : <b>Réglages → Synchronisation → « Code d'appairage »</b>. Envoie-toi ce code (message, Notes) puis colle-le ici.</p>
     <textarea class="input" id="pair-code" rows="3" placeholder="GEMO1-…" ${st.running ? 'disabled' : ''}></textarea>
     <button class="btn primary block" data-act="pair" style="margin-top:10px">Appairer et récupérer mes cartes</button></div>`;
 }
 function viewHome(m) {
   const all = Store.counts(null), total = all.new + all.learn + all.review, st = Store.stats(), hr = new Date().getHours();
-  const name = Store.cfg().userName || 'Alexandre', greet = (hr < 5 || hr >= 18 ? 'Bonsoir' : 'Bonjour') + ', ' + name;
+  const name = (Store.cfg().userName || '').trim(), greet = (hr < 5 || hr >= 18 ? 'Bonsoir' : 'Bonjour') + (name ? ', ' + name : ' 👋');
   const decks = [...Store.data.decks].sort((a, b) => a.name.localeCompare(b.name, 'fr')), roots = decks.filter(d => !d.name.includes('::'));
   const none = !Store.data.cards.length, syncOn = Sync.status().configured;
   let a = '', c = '', b = ''; if (none) a = b = c = 'sleep'; else if (!total && st.doneToday) a = b = c = 'party'; else if (!total) a = b = c = 'sleep'; else if (st.doneToday) a = b = 'happy';
   m.innerHTML = `<div class="top"><h1>${h(greet)}</h1><p style="text-transform:capitalize">${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
     ${isIOS() && !isStandalone() ? `<div class="install">📲 <div>Pour l'avoir comme une vraie appli : bouton <b>Partager</b> ⬆︎ puis <b>« Sur l'écran d'accueil »</b>.</div></div>` : ''}
-    ${none && !syncOn ? pairingBox() : ''}
+    ${none && !syncOn ? `<div class="card-box"><div class="pair" style="height:110px;margin-bottom:6px">${trio('sleep', 'sleep', 'sleep')}</div><h3 style="text-align:center">Ajoute tes premières cartes</h3>
+      <p class="muted" style="margin:0 0 14px;line-height:1.55;text-align:center">Importe un fichier de cartes (préparé avec Claude, ChatGPT, ou envoyé par un ami) ou crée-les toi-même.</p>
+      <div style="display:grid;gap:10px"><button class="btn primary" data-act="importsheet">${svg('down')}Importer des cartes</button><button class="btn" data-act="addsheet">Créer une carte</button><button class="btn" data-act="showpair">J'ai un code d'appairage (PC)</button></div></div>${showPair ? pairingBox() : ''}` : ''}
     ${none && syncOn ? `<div class="empty"><div class="pair">${trio('sleep', 'sleep', 'sleep')}</div><h2>Aucune carte pour l'instant</h2><p>Synchronise avec ton PC pour récupérer tes cartes.</p><button class="btn primary" data-act="syncnow">${svg('reset')}Synchroniser</button></div>` : ''}
-    ${none ? '' : `<div class="hero"><h2>${total ? `${plural(total, 'carte')} à réviser` : 'Tout est à jour 🎉'}</h2><p>${total ? 'Quelques minutes, et tu retiens plus longtemps.' : 'Reviens plus tard ou ajoute des cartes sur ton PC.'}</p>
+    ${none ? '' : `<div class="hero"><h2>${total ? `${plural(total, 'carte')} à réviser` : 'Tout est à jour 🎉'}</h2><p>${total ? 'Quelques minutes, et tu retiens plus longtemps.' : 'Reviens plus tard ou ajoute des cartes.'}</p>
       <div class="hero-counts"><div><b>${all.new}</b><span>Nouvelles</span></div><div><b>${all.learn}</b><span>En cours</span></div><div><b>${all.review}</b><span>À revoir</span></div></div>
       ${total ? `<button class="btn white" data-act="studyall">${svg('play')}Commencer</button>` : ''}<div class="hero-bears">${trio(a, c, b)}</div></div>
       <div class="chips"><span class="chip">${svg('flame')}${plural(st.streak, 'jour')} de série</span><span class="chip">${plural(st.doneToday, 'révision')} aujourd'hui</span>${st.retention != null ? `<span class="chip">${Math.round(st.retention * 100)} % de réussite</span>` : ''}</div>
-      <div class="sect"><h3>Mes matières</h3></div>${roots.map(r => subjectCard(r, decks)).join('')}`}`;
-}
-function subjectCard(root, all) {
+      <div class="sect"><h3>Mes matières</h3><div style="display:flex;gap:8px"><button class="btn sm" data-act="importsheet">Importer</button><button class="btn sm" data-act="addsheet">+ Carte</button></div></div>${roots.map(r => subjectCard(r, decks)).join('')}`}`;
+}function subjectCard(root, all) {
   const i = deckInfo(root), c = i.counts, col = Store.deckColor(root), kids = all.filter(x => x.name.startsWith(root.name + '::'));
   const cell = (k, v, l) => `<div class="cnt ${k} ${v ? '' : 'zero'}"><b>${v}</b><span>${l}</span></div>`;
   const rows = kids.map(k => { const ki = deckInfo(k), kc = ki.counts, depth = k.name.split('::').length - 2, badges = [['new', kc.new], ['learn', kc.learn], ['review', kc.review]].filter(x => x[1]).map(x => `<span class="n ${x[0]}">${x[1]}</span>`).join(''); return `<button class="chapter" style="padding-left:${16 + depth * 16}px" data-act="studydeck" data-id="${k.id}"><span class="cdot"></span><span class="nm">${h(k.name.split('::').pop())}</span>${badges || '<span class="tot" style="color:var(--good)">✓</span>'}<span class="tot">${ki.total}</span></button>`; }).join('');
@@ -267,23 +269,122 @@ async function syncNow(manual) {
 }
 function viewSettings(m) {
   const c = Store.cfg(), st = Sync.status();
-  m.innerHTML = `<div class="top"><h1>Réglages</h1><p>Synchronisation, apparence et rythme.</p></div>
-    <div class="card-box"><h3>☁ Synchronisation</h3>${st.configured ? `<p style="margin:0 0 6px"><b>Activée.</b> Dernière synchro : <b>${syncAgo(st.last)}</b>${st.running ? ' · en cours…' : ''}</p>${st.error ? `<p style="color:var(--again);margin:0 0 8px">⚠ ${h(st.error)}</p>` : '<p class="hint" style="margin:0 0 10px">Se fait toute seule quand il y a internet.</p>'}
-        <div style="display:grid;gap:10px"><button class="btn primary" data-act="syncnow">${svg('reset')}Synchroniser maintenant</button><button class="btn danger" data-act="syncoff">Désactiver</button></div>` : `<p class="muted" style="margin:0 0 12px;line-height:1.55">Colle le code d'appairage affiché sur ton PC (Réglages → Synchronisation).</p><textarea class="input" id="pair-code" rows="3" placeholder="GEMO1-…"></textarea><button class="btn primary block" data-act="pair" style="margin-top:10px">Appairer</button>`}</div>
+  m.innerHTML = `<div class="top"><h1>Réglages</h1><p>Profil, cartes, synchronisation et rythme.</p></div>
+    <div class="card-box"><h3>Mon profil</h3><div class="field" style="margin:0"><label>Prénom</label><input class="input" data-s="userName" value="${h(c.userName || '')}" placeholder="Ton prénom" autocomplete="given-name"></div><p class="hint" style="margin:8px 0 0">Tes cartes et tes progrès sont enregistrés dans ce téléphone : personne d'autre ne les voit.</p></div>
+    <div class="card-box"><h3>Mes cartes</h3><p class="hint" style="margin:0 0 12px">${plural(Store.data.cards.length, 'carte')} dans ce téléphone.</p><div style="display:grid;gap:10px"><button class="btn primary" data-act="importsheet">${svg('down')}Importer des cartes</button><button class="btn" data-act="addsheet">Créer une carte</button></div></div>
+    <div class="card-box"><h3>☁ Sauvegarde et synchronisation</h3>${st.configured ? `<p style="margin:0 0 6px"><b>Activée.</b> Dernière synchro : <b>${syncAgo(st.last)}</b>${st.running ? ' · en cours…' : ''}</p>${st.error ? `<p style="color:var(--again);margin:0 0 8px">⚠ ${h(st.error)}</p>` : '<p class="hint" style="margin:0 0 10px">Se fait toute seule quand il y a internet.</p>'}
+        <div style="display:grid;gap:10px"><button class="btn primary" data-act="syncnow">${svg('reset')}Synchroniser maintenant</button><button class="btn" data-act="codesheet">Code d'appairage (autre appareil)</button><button class="btn danger" data-act="syncoff">Désactiver</button></div>`
+      : `<p class="muted" style="margin:0 0 12px;line-height:1.55"><b>Optionnel.</b> Sauvegarde tes cartes en ligne et retrouve-les sur un autre appareil.</p>
+        <label class="hint" style="display:block;margin-bottom:6px">Je suis déjà appairé avec un PC : colle le code</label><textarea class="input" id="pair-code" rows="2" placeholder="GEMO1-…"></textarea><button class="btn primary block" data-act="pair" style="margin-top:10px">Appairer</button>
+        <hr style="border:0;border-top:1px solid var(--line);margin:16px 0"><label class="hint" style="display:block;margin-bottom:6px">Ou crée ta propre sauvegarde avec ta clé GitHub personnelle</label><input class="input" id="own-token" type="password" placeholder="Clé GitHub (ghp_…)" autocomplete="off"><button class="btn block" data-act="tokensetup" style="margin-top:10px">Activer ma sauvegarde</button>`}</div>
     <div class="card-box"><h3>Apparence</h3><div class="field"><label>Thème</label><div class="seg">${[['auto', 'Auto'], ['light', 'Clair'], ['dark', 'Sombre']].map(([k, l]) => `<button class="${(c.theme || 'auto') === k ? 'on' : ''}" data-act="theme" data-v="${k}">${l}</button>`).join('')}</div></div>
       <div class="field" style="margin:0"><label>Couleur</label><div class="swatches">${ACCENTS.map((a, i) => `<button class="sw ${c.accent === i ? 'on' : ''}" style="background:linear-gradient(135deg,${a[0]},${a[1]})" data-act="accent" data-v="${i}"></button>`).join('')}</div></div></div>
     <div class="card-box"><h3>Rythme quotidien</h3><div class="row2"><div class="field"><label>Nouvelles / jour</label><input class="input" type="number" min="0" inputmode="numeric" data-s="newPerDay" value="${c.newPerDay}"></div><div class="field"><label>Révisions max</label><input class="input" type="number" min="0" inputmode="numeric" data-s="reviewsPerDay" value="${c.reviewsPerDay}"></div></div>
       <div class="switch-row"><div><b>Mélanger les cartes</b><div class="hint">Nouvelles cartes dans un ordre aléatoire.</div></div><label class="tgl"><input type="checkbox" data-s="shuffle" ${c.shuffle !== false ? 'checked' : ''}><span></span></label></div></div>
-    <div class="card-box"><h3>Données</h3><p class="hint" style="margin:0 0 10px">${plural(Store.data.cards.length, 'carte')} sur ce téléphone, enregistrées hors ligne.</p><button class="btn block" data-act="export">${svg('down')}Exporter une copie (JSON)</button></div>
+    <div class="card-box"><h3>Données</h3><button class="btn block" data-act="export">${svg('down')}Exporter une copie de mes cartes (JSON)</button></div>
     <p class="hint" style="text-align:center">Les Gémo · version iPhone${isStandalone() ? '' : ' · ouvre-la depuis l\'écran d\'accueil pour une meilleure expérience'}</p>`;
-}
-async function pairNow() {
+}async function pairNow() {
   const code = ($('#pair-code') || {}).value || ''; if (!code.trim()) return toast('Colle d\'abord le code d\'appairage.', 'error');
   const btn = $('[data-act="pair"]'); if (btn) { btn.disabled = true; btn.textContent = 'Synchronisation…'; }
   try { await Sync.join(code); toast('☁ Appairé : cartes récupérées', 'ok'); render(); }
   catch (e) { toast(Sync.describe(e), 'error', 6000); if (btn) { btn.disabled = false; btn.textContent = 'Appairer'; } }
 }
 
+/* ---------- Importer / créer des cartes, prénom, code ---------- */
+const CLAUDE_PROMPT = `Transforme le cours ci-dessous en flashcards pour mon appli Les Gémo.
+Réponds UNIQUEMENT avec un bloc JSON de ce format (rien d'autre) :
+{
+  "deck": "Matière::Chapitre",
+  "cards": [
+    { "type": "basic", "front": "Question ?", "back": "Réponse", "source": "où dans le cours", "tags": ["matiere"] },
+    { "type": "cloze", "front": "Texte avec {{c1::mot caché}}", "back": "" }
+  ]
+}
+Règles : une seule idée par carte (question courte, réponse précise) ; types : basic (question → réponse), reversed (vocabulaire ou définitions dans les deux sens), cloze (texte à trous {{c1::…}}) ; formules en LaTeX entre $…$ (antislash doublés dans le JSON, ex. $\\\\frac{a}{b}$) ; le trou entoure la formule ({{c1::$x^2$}}) ; n'invente rien qui ne soit pas dans le cours ; indique la source de chaque carte ; en français.
+
+Mon cours :
+`;
+async function copyText(txt, okMsg) { try { await navigator.clipboard.writeText(txt); toast(okMsg, 'ok'); return true; } catch (e) { toast('Copie impossible : sélectionne le texte à la main.', 'error'); return false; } }
+function importSheet(files = []) {
+  const st = { sources: [], deckMap: {} }, pretty = n => n.replace(/::/g, ' › ');
+  const decks = [...Store.data.decks].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  openSheet(`<h2>Importer des cartes</h2>
+    <button class="btn block" id="imp-browse" type="button">${svg('down')}Choisir un fichier…</button><input type="file" id="imp-file" multiple accept=".json,.csv,.tsv,.txt,.md,application/json,text/*" hidden>
+    <div id="imp-files" class="chips" style="margin:10px 0 0"></div>
+    <div class="field" style="margin-top:14px"><label>Ou colle le contenu ici</label><textarea class="input" id="imp-text" rows="4" placeholder="Colle ici le JSON, le tableau ou la liste de cartes…"></textarea></div>
+    <div class="field"><label>Paquet par défaut <span style="text-transform:none;font-weight:400">(si les cartes n'en indiquent pas)</span></label><input class="input" id="imp-deck" list="imp-decks" placeholder="Ex. Histoire::Guerre froide" autocomplete="off"><datalist id="imp-decks">${decks.map(d => `<option value="${h(d.name)}">`).join('')}</datalist></div>
+    <button class="btn sm" id="imp-prompt" type="button" style="margin-bottom:12px">Copier la consigne à donner à Claude / ChatGPT</button>
+    <div id="imp-prev"></div>
+    <div class="sheet-actions"><button class="btn" data-x="no">Annuler</button><button class="btn primary" data-x="ok" disabled>Importer</button></div>`, o => {
+    const q = s => $(s, o), prev = q('#imp-prev'), okb = q('[data-x=ok]'); let timer = null, result = null;
+    const paintFiles = () => { q('#imp-files').innerHTML = st.sources.map((s, i) => `<span class="chip">${h(s.name)} <button data-rm="${i}" style="margin-left:2px">${svg('x')}</button></span>`).join(''); };
+    const addFiles = async fl => { for (const f of fl) { try { st.sources.push({ name: f.name, text: await f.text() }); } catch (e) { toast('Lecture impossible : ' + f.name, 'error'); } } paintFiles(); compute(); };
+    const later = () => { clearTimeout(timer); timer = setTimeout(compute, 250); };
+    function compute() {
+      const srcs = [...st.sources], pasted = q('#imp-text').value; if (pasted.trim()) srcs.push({ name: 'Texte collé', text: pasted });
+      result = null; okb.disabled = true; okb.textContent = 'Importer';
+      if (!srcs.length) { prev.innerHTML = '<p class="hint">Un aperçu apparaît ici avant l\'import.</p>'; return; }
+      const b = Importer.build(srcs, q('#imp-deck').value.trim(), st.deckMap), r = Store.importPayload(b.payload, { dryRun: true });
+      const names = Object.keys(r.byDeck), existing = Store.data.decks.map(d => d.name);
+      const warns = names.filter(n => r.byDeck[n].isNew).map(n => [n, Importer.near(n, existing)]).filter(x => x[1].length);
+      const noDeck = !q('#imp-deck').value.trim() && b.payload.decks.some(g => g.deck === 'Importé');
+      prev.innerHTML = `<div class="card-box" style="margin:0 0 10px;padding:12px 14px;box-shadow:none"><b>${r.added ? '✓ ' + plural(r.added, 'carte') + ' prête' + (r.added > 1 ? 's' : '') : 'Aucune carte à importer'}</b>${r.skipped ? ` · ${plural(r.skipped, 'doublon ignoré', 'doublons ignorés')}` : ''}<div class="hint">${b.formats.map(h).join(' · ')}</div></div>
+        ${names.map(n => `<div class="hint" style="margin:0 0 6px">• <b style="color:var(--text)">${h(pretty(n))}</b> — ${plural(r.byDeck[n].added, 'carte')}${r.byDeck[n].isNew ? ' (nouveau paquet)' : ''}</div>`).join('')}
+        ${warns.map(([n, nr]) => `<div class="install" style="margin:8px 0">⚠ <div>« ${h(pretty(n))} » n'existe pas, mais « ${h(pretty(nr[0]))} » existe. <button class="btn sm" data-use="${h(n)}" data-to="${h(nr[0])}" style="margin-top:6px">Utiliser « ${h(nr[0].split('::').pop())} »</button></div></div>`).join('')}
+        ${noDeck ? `<div class="install" style="margin:8px 0">Ces cartes n'ont pas de paquet : elles iront dans « Importé ». Choisis un paquet ci-dessus pour les ranger.</div>` : ''}
+        ${b.errors.concat(r.errors.slice(0, 3)).map(e => `<div class="hint" style="color:var(--again);margin:4px 0">${h(e)}</div>`).join('')}`;
+      result = { payload: b.payload, r }; okb.disabled = !r.added; okb.textContent = r.added ? 'Importer ' + plural(r.added, 'carte') : 'Importer';
+    }
+    q('#imp-browse').onclick = () => q('#imp-file').click(); q('#imp-file').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+    q('#imp-text').addEventListener('input', later); q('#imp-deck').addEventListener('input', () => { st.deckMap = {}; later(); });
+    q('#imp-prompt').onclick = () => copyText(CLAUDE_PROMPT, 'Consigne copiée : colle-la dans Claude, puis ajoute ton cours.');
+    o.addEventListener('click', e => {
+      const rm = e.target.closest('[data-rm]'); if (rm) { st.sources.splice(+rm.dataset.rm, 1); paintFiles(); compute(); return; }
+      const u = e.target.closest('[data-use]'); if (u) { st.deckMap[u.dataset.use] = u.dataset.to; compute(); return; }
+      const b = e.target.closest('[data-x]'); if (!b) return; if (b.dataset.x !== 'ok') return closeSheet(); if (!result) return;
+      const rr = Store.importPayload(result.payload); closeSheet();
+      toast(`✨ ${plural(rr.added, 'carte importée', 'cartes importées')}${rr.skipped ? ` · ${plural(rr.skipped, 'doublon ignoré', 'doublons ignorés')}` : ''}`, 'ok', 4500); render();
+    });
+    paintFiles(); compute(); if (files.length) addFiles(files);
+  });
+}
+function addSheet() {
+  const roots = Store.data.decks.filter(d => !d.name.includes('::')), st = { type: 'basic' };
+  openSheet(`<h2>Créer une carte</h2><div class="seg" id="ad-type" style="margin-bottom:14px"><button data-t="basic" class="on">Simple</button><button data-t="cloze">Texte à trous</button></div>
+    <div class="row2"><div class="field"><label>Matière</label><input class="input" id="ad-subj" list="ad-subjs" placeholder="Ex. Histoire" autocomplete="off"><datalist id="ad-subjs">${roots.map(d => `<option value="${h(d.name)}">`).join('')}</datalist></div><div class="field"><label>Chapitre</label><input class="input" id="ad-chap" list="ad-chaps" placeholder="Ex. Guerre froide" autocomplete="off"><datalist id="ad-chaps"></datalist></div></div>
+    <div class="field"><label id="ad-flab">Recto (question)</label><textarea class="input" id="ad-front" rows="3"></textarea><div class="hint" id="ad-hint"></div></div>
+    <div class="field"><label id="ad-blab">Verso (réponse)</label><textarea class="input" id="ad-back" rows="3"></textarea></div>
+    <div class="sheet-actions"><button class="btn" data-x="no">Terminé</button><button class="btn primary" data-x="ok">Ajouter</button></div>`, o => {
+    const q = s => $(s, o), last = Store.data.decks.find(d => !d.name.includes('::'));
+    const chapOpts = () => { const s = q('#ad-subj').value.trim().toLowerCase(); q('#ad-chaps').innerHTML = Store.data.decks.filter(d => d.name.toLowerCase().startsWith(s + '::')).map(d => `<option value="${h(d.name.slice(s.length + 2))}">`).join(''); };
+    const typeUi = () => { o.querySelectorAll('#ad-type button').forEach(b => b.classList.toggle('on', b.dataset.t === st.type)); const cl = st.type === 'cloze'; q('#ad-flab').textContent = cl ? 'Texte à trous' : 'Recto (question)'; q('#ad-blab').textContent = cl ? 'Complément (optionnel)' : 'Verso (réponse)'; q('#ad-hint').innerHTML = cl ? 'Entoure les réponses : <code>{{c1::mot}}</code>' : ''; };
+    q('#ad-subj').addEventListener('input', chapOpts); if (last) { q('#ad-subj').value = last.name; chapOpts(); } typeUi();
+    o.addEventListener('click', e => {
+      const tb = e.target.closest('#ad-type button'); if (tb) { st.type = tb.dataset.t; typeUi(); return; }
+      const b = e.target.closest('[data-x]'); if (!b) return; if (b.dataset.x !== 'ok') { closeSheet(); render(); return; }
+      const subj = q('#ad-subj').value.trim(), chap = q('#ad-chap').value.trim(), front = q('#ad-front').value.trim(), back = q('#ad-back').value.trim();
+      if (!subj) return toast('Choisis une matière.', 'error'); if (!front) return toast('Le recto est vide.', 'error');
+      if (st.type === 'cloze' && !Render.clozeNumbers(front).length) return toast('Ajoute au moins un trou {{c1::…}}.', 'error'); if (st.type !== 'cloze' && !back) return toast('Le verso est vide.', 'error');
+      const deck = Store.addDeck(chap ? subj + '::' + chap : subj); Store.addNote({ deckId: deck.id, type: st.type, front, back, extra: '', source: '', tags: [] });
+      toast('Carte ajoutée ✓', 'ok', 1800); q('#ad-front').value = ''; q('#ad-back').value = ''; q('#ad-front').focus();
+    });
+  });
+}
+function nameSheet() {
+  openSheet(`<h2>Bienvenue ! 👋</h2><p class="muted" style="margin:0 0 14px;line-height:1.55">Comment tu t'appelles ? Ça sert juste à te dire bonjour.</p><input class="input" id="nm" placeholder="Ton prénom" autocomplete="given-name"><div class="sheet-actions" style="margin-top:14px"><button class="btn" data-x="no">Plus tard</button><button class="btn primary" data-x="ok">Valider</button></div>`, o => {
+    const inp = $('#nm', o); setTimeout(() => inp.focus(), 250);
+    o.addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (!b) return; if (b.dataset.x === 'ok' && inp.value.trim()) Store.cfg().userName = inp.value.trim(); Store.cfg().nameAsked = true; Store.save(); closeSheet(); render(); });
+  });
+}
+function codeSheet() {
+  const code = Sync.pairingCode();
+  openSheet(`<h2>Code d'appairage</h2><p class="muted" style="margin:0 0 10px;line-height:1.55">Colle ce code dans Les Gémo sur un autre appareil pour y retrouver tes cartes. <b>Ne le partage avec personne d'autre</b> : il donne accès à tes cartes.</p><textarea class="input" rows="4" readonly style="font-size:12px">${h(code)}</textarea><div class="sheet-actions" style="margin-top:12px"><button class="btn" data-x="no">Fermer</button><button class="btn primary" data-x="copy">Copier</button></div>`, o => o.addEventListener('click', async e => { const b = e.target.closest('[data-x]'); if (!b) return; if (b.dataset.x === 'copy') copyText(code, 'Code copié'); else closeSheet(); }));
+}
+async function tokenSetup() {
+  const tok = ($('#own-token') || {}).value || ''; if (!tok.trim()) return toast('Colle d\'abord ta clé GitHub.', 'error');
+  const btn = $('[data-act="tokensetup"]'); if (btn) { btn.disabled = true; btn.textContent = 'Activation…'; }
+  try { await Sync.setup(tok); toast('☁ Sauvegarde activée', 'ok'); render(); } catch (e) { toast(Sync.describe(e), 'error', 6000); if (btn) { btn.disabled = false; btn.textContent = 'Activer ma sauvegarde'; } }
+}
 const actions = {
   tab: el => go(el.dataset.k),
   studyall: () => startStudy(null),
@@ -306,6 +407,8 @@ const actions = {
   theme: el => { Store.cfg().theme = el.dataset.v; Store.save(); applyTheme(); render(); },
   accent: el => { Store.cfg().accent = +el.dataset.v; Store.save(); applyTheme(); render(); },
   pair: pairNow, syncnow: () => syncNow(true),
+  importsheet: () => importSheet(), addsheet: addSheet, codesheet: codeSheet, tokensetup: tokenSetup,
+  showpair: () => { showPair = !showPair; render(); },
   syncoff: async () => { if (await ask('Désactiver la synchronisation ?', 'Tes cartes restent sur ce téléphone, mais ne seront plus synchronisées avec ton PC.', 'Désactiver', true)) { await Sync.disable(); toast('Synchronisation désactivée'); render(); } },
   export: async () => {
     const blob = new Blob([JSON.stringify(Store.data)], { type: 'application/json' }), file = new File([blob], 'les-gemo-' + new Date().toISOString().slice(0, 10) + '.json', { type: 'application/json' });
@@ -333,6 +436,7 @@ document.addEventListener('change', e => {
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !S) location.reload(); had = true; });
   }
   if (Sync.status().configured) syncNow(false);
+  if (!Store.cfg().userName && !Store.cfg().nameAsked) setTimeout(nameSheet, 700);
   window.addEventListener('online', () => { if (!S && Sync.status().configured) syncNow(false); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && !S && Sync.status().configured) syncNow(false); });
   setInterval(() => { if (!S && !document.hidden && Sync.status().configured) syncNow(false); }, 5 * 60 * 1000);
